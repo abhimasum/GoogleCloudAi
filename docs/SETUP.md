@@ -1532,6 +1532,151 @@ Implementing **zero-secret CI/CD pipeline** using **Workload Identity Federation
 │  ✅ Benefits:                                                   │
 │  - No static secrets stored in GitHub                          │
 │  - Token is ephemeral (15 mins for OIDC, 1h for access token) │
+│  - Revoke access instantly by changing IAM policy              │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+
+---
+
+## 🧹 Step 8: Cleanup and Cost Optimization (Optional)
+
+**Status: ON DEMAND** | Learning Goal: Manage cloud costs, reset environments
+
+When you want to save costs or update your knowledge base, use the cleanup workflow to delete billable resources while keeping your GCP project intact.
+
+### 📋 What Gets Deleted
+
+**Billable Resources (Will Delete):**
+- ✅ Cloud Run services (retriever-agent, orchestrator-agent, ingestion)
+- ✅ Artifact Registry Docker images (frees storage)
+- ✅ RAG Corpus (knowledge base) — optional
+- ✅ Cloud Storage contents — optional
+
+**Kept (No Cost):**
+- ✅ GCP Project (free to keep)
+- ✅ Enabled APIs (no cost when not in use)
+- ✅ GitHub repository
+- ✅ GitHub Actions workflows
+
+### 🚀 Trigger the Cleanup Workflow
+
+**Option 1: Via GitHub Web UI**
+
+1. Go to: `https://github.com/abhimasum/GoogleCloudAi/actions`
+2. Click on **"🧹 Cleanup Resources (Cost Optimization)"** workflow
+3. Click **"Run workflow"** button
+4. Choose your options:
+   - **Delete RAG Corpus?** Select `true` if updating documents, `false` to keep
+   - **Delete Docker Images?** Select `true` to free storage
+   - **Delete Storage Contents?** Select `true` if not needed
+5. Click **"Run workflow"** green button
+
+**Option 2: Via GitHub CLI**
+
+```powershell
+# List available workflows
+gh workflow list
+
+# Trigger cleanup workflow with specific inputs
+gh workflow run cleanup.yml `
+  -f delete_rag_corpus=true `
+  -f delete_docker_images=true `
+  -f delete_storage=false
+
+# Watch the workflow run
+gh run watch
+```
+
+### 📊 Cost Savings
+
+| Resource | Typical Cost | After Cleanup |
+|----------|-------------|---------------|
+| Cloud Run services | $0.40/million invocations | ✅ $0 |
+| Artifact Registry storage | ~$0.02-0.10/month | ✅ Free |
+| RAG Corpus storage | Varies by size | ✅ Free (if deleted) |
+| Cloud Storage | $0 (within 5GB free) | ✅ $0 |
+| **Monthly Total** | **~$10-50+** | **✅ ~$0** |
+
+### 🔄 Update Knowledge Base After Cleanup
+
+After cleanup, follow these steps to redeploy with new documents:
+
+**Step 1: Update Documents**
+
+```powershell
+# Edit files in data/ directory
+code data/my-document.md
+
+# Or add new files:
+# data/new-doc.md
+# data/another-doc.md
+```
+
+**Step 2: Commit and Push**
+
+```powershell
+git add data/
+git commit -m "Update knowledge base with new documents"
+git push origin master
+```
+
+**Step 3: Automatic Redeploy**
+
+- GitHub Actions workflow triggers automatically
+- Ingestion step re-processes all documents
+- New RAG corpus created with updated knowledge
+- Agents redeployed with new corpus ID
+- Same URLs as before (no configuration changes needed)
+
+**Step 4: Verify**
+
+```powershell
+# Watch workflow progress
+gh run watch
+
+# Once complete, test in browser:
+# https://orchestrator-agent-xxxxx.run.app
+
+# Ask questions about your new documents
+# Questions should be answered with new content
+```
+
+### ⚙️ Advanced: Manual Cleanup
+
+If you prefer manual control via gcloud:
+
+```powershell
+$PROJECT = "agenticaigcplearn"
+$REGION = "europe-west4"
+
+# Delete specific resources:
+
+# Cloud Run services
+gcloud run services delete retriever-agent --project=$PROJECT --region=$REGION --quiet
+gcloud run services delete orchestrator-agent --project=$PROJECT --region=$REGION --quiet
+gcloud run services delete ingestion --project=$PROJECT --region=$REGION --quiet
+
+# RAG Corpus (frees stored embeddings)
+gcloud ai documents delete --corpus-id=4611686018427387904 --project=$PROJECT --quiet
+
+# Docker images from Artifact Registry
+gcloud artifacts docker images list \
+  europe-west4-docker.pkg.dev/$PROJECT/adk-agents \
+  --format='value(image)' | `
+  ForEach-Object { gcloud artifacts docker images delete $_ --quiet }
+
+# Cloud Storage contents (optional)
+gsutil -m rm -r gs://agenticaigcplearn-adk-docs/*
+```
+
+### 🎓 What You've Learned
+
+By managing costs, you understand:
+- How to identify billable vs free resources in Google Cloud
+- Importance of cleaning up unused services
+- How to update ML knowledge bases
+- Zero-downtime redeployment strategies
+- Cost optimization for AI/ML workloads
 │  - Token is role-scoped (can only do specific things)          │
 │  - No manual key rotation needed                               │
 │  - Audit trail of who deployed what                            │
