@@ -1085,46 +1085,398 @@ gcloud iam service-accounts list --project=agenticaigcplearn
 
 ---
 
-## ⏳ Step 7: Automate with GitHub Actions and Workload Identity Federation
+## ⏳ Step 7: Automate with GitHub Actions and Repository Variables
 
-**Status: NOT STARTED YET** | Learning Goal: Implement CI/CD pipeline without secrets
+**Status: READY TO IMPLEMENT** | Learning Goal: Automate deployments with GitHub variables
 
-### 📋 Prerequisites Check & GCP Login
+### 🔐 Step 7.1: Login to GitHub with GitHub CLI
 
-Before setting up GitHub Actions, verify in a **new terminal**:
+First, authenticate with GitHub using the GitHub CLI (`gh`):
 
 ```powershell
-# ⚠️ FIRST: Login to Google Cloud (if not already logged in)
-gcloud auth login
-# Opens browser for authentication - sign in with your Google account
+# Check if gh is installed
+gh --version
+# Expected: "gh version X.Y.Z"
 
-# ⚠️ SECOND: Set your active project
-gcloud config set project agenticaigcplearn
+# Login to GitHub (browser will open for authentication)
+gh auth login
 
-# Verify project is set:
-gcloud config get-value project
-# Expected: agenticaigcplearn
+# Select options when prompted:
+# ? What account do you want to log into? → GitHub.com
+# ? What is your preferred protocol for Git operations? → HTTPS
+# ? Authenticate Git with your GitHub credentials? → Y
+# ? How would you like to authenticate GitHub CLI? → Login with a web browser
 
-# 1. Check GitHub repository is accessible
-git remote -v
-# Expected: origin pointing to github.com/abhimasum/GoogleCloudAi
-
-# 2. Verify you can push to repository
-git status
-# Expected: Your branch is working tree clean or showing changes
-
-# 3. Check if WIF setup script exists
-Get-Item infra/setup_wif_github_actions.sh
-# Expected: File exists
-
-# 4. Verify gcloud IAM commands work
-gcloud iam service-accounts list --project=agenticaigcplearn
-# Expected: Lists service accounts (scheduler-invoker@ exists)
-
-# 5. Check GitHub repository settings page is accessible
-Write-Host "Open: https://github.com/abhimasum/GoogleCloudAi/settings/variables/actions"
-# Expected: Can access this page
+# Verify login
+gh auth status
+# Expected: "Logged in to github.com as abhimasum"
 ```
+
+---
+
+### 📝 Step 7.2: Create GitHub Repository Variables (Using gh CLI)
+
+These variables will be used by GitHub Actions to deploy your agents. They're **unencrypted** (safe to show in logs) unlike secrets.
+
+**Set your repository variables:**
+
+```powershell
+# Navigate to repository
+cd "C:\Abhishek\OtherAndResearch\Learning Practical\AI\CodeBase\GoogleCloudAi"
+
+# Set GCP_PROJECT_ID
+gh variable set GCP_PROJECT_ID --body "agenticaigcplearn"
+
+# Set GCP_REGION  
+gh variable set GCP_REGION --body "europe-west4"
+
+# Set GCP_PROJECT_NUMBER
+gh variable set GCP_PROJECT_NUMBER --body "1073291557100"
+
+# Set RAG_CORPUS
+gh variable set RAG_CORPUS --body "projects/1073291557100/locations/europe-west4/ragCorpora/4611686018427387904"
+
+# Set GCS_BUCKET
+gh variable set GCS_BUCKET --body "agenticaigcplearn-adk-docs"
+
+# Set Docker registry
+gh variable set GCP_DOCKER_REGISTRY --body "europe-west4-docker.pkg.dev/agenticaigcplearn/adk-agents"
+
+# Set Retriever URL (update with your actual URL)
+gh variable set RETRIEVER_AGENT_URL --body "https://retriever-agent-fjcbth2otq-ez.a.run.app"
+
+# Set Orchestrator URL (update after first deployment)
+gh variable set ORCHESTRATOR_AGENT_URL --body "https://orchestrator-agent-fjcbth2otq-ez.a.run.app"
+
+Write-Host "✓ All repository variables set successfully"
+```
+
+**Verify variables are set:**
+
+```powershell
+# List all variables
+gh variable list
+
+# Expected output shows all 8 variables:
+# GCP_PROJECT_ID                              agenticaigcplearn
+# GCP_REGION                                  europe-west4
+# GCP_PROJECT_NUMBER                          1073291557100
+# RAG_CORPUS                                  projects/1073291557100/locations/europe-west4/ragCorpora/4611686018427387904
+# GCS_BUCKET                                  agenticaigcplearn-adk-docs
+# GCP_DOCKER_REGISTRY                         europe-west4-docker.pkg.dev/agenticaigcplearn/adk-agents
+# RETRIEVER_AGENT_URL                         https://retriever-agent-fjcbth2otq-ez.a.run.app
+# ORCHESTRATOR_AGENT_URL                      https://orchestrator-agent-fjcbth2otq-ez.a.run.app
+```
+
+**Update a variable (if needed):**
+
+```powershell
+# Example: Update RETRIEVER_AGENT_URL if your URL changes
+gh variable set RETRIEVER_AGENT_URL --body "https://retriever-agent-NEWID-zzz.a.run.app"
+
+# Verify update
+gh variable get RETRIEVER_AGENT_URL
+```
+
+**View in GitHub Web UI (optional):**
+
+```powershell
+# Open repository variables page in browser
+Start-Process "https://github.com/abhimasum/GoogleCloudAi/settings/variables/actions"
+```
+
+---
+
+### 📊 GitHub Variables Configuration
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `GCP_PROJECT_ID` | `agenticaigcplearn` | Google Cloud project identifier |
+| `GCP_REGION` | `europe-west4` | Deployment region for Cloud Run services |
+| `GCP_PROJECT_NUMBER` | `1073291557100` | Project number for Workload Identity |
+| `RAG_CORPUS` | `projects/.../ragCorpora/4611686018427387904` | RAG Engine corpus resource path |
+| `GCS_BUCKET` | `agenticaigcplearn-adk-docs` | Cloud Storage bucket with documents |
+| `GCP_DOCKER_REGISTRY` | `europe-west4-docker.pkg.dev/agenticaigcplearn/adk-agents` | Artifact Registry location |
+| `RETRIEVER_AGENT_URL` | `https://retriever-agent-fjcbth2otq-ez.a.run.app` | Retriever agent Cloud Run URL |
+| `ORCHESTRATOR_AGENT_URL` | `https://orchestrator-agent-fjcbth2otq-ez.a.run.app` | Orchestrator agent Cloud Run URL |
+
+---
+
+### 🔑 Step 7.3: Setup Workload Identity Federation (WIF)
+
+WIF allows GitHub Actions to authenticate to Google Cloud **without storing static keys**. Each workflow run gets a short-lived token.
+
+**Run the WIF setup script:**
+
+```powershell
+$PROJECT = "agenticaigcplearn"
+$GITHUB_REPO = "abhimasum/GoogleCloudAi"
+
+# Execute the setup script
+bash infra/setup_wif_github_actions.sh $PROJECT $GITHUB_REPO
+
+# Expected output:
+# ✓ Workload Identity Pool created: wif-github
+# ✓ Workload Identity Provider created: github
+# ✓ Service Account created: adk-deploy@agenticaigcplearn.iam.gserviceaccount.com
+# ✓ WIF binding configured for: abhimasum/GoogleCloudAi
+#
+# Copy these values to GitHub repository variables:
+# GCP_WORKLOAD_IDENTITY_PROVIDER = projects/1073291557100/locations/global/workloadIdentityPools/wif-github/providers/github
+# GCP_SERVICE_ACCOUNT = adk-deploy@agenticaigcplearn.iam.gserviceaccount.com
+```
+
+**Add WIF variables to GitHub:**
+
+```powershell
+# Set the WIF variables
+gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --body "projects/1073291557100/locations/global/workloadIdentityPools/wif-github/providers/github"
+
+gh variable set GCP_SERVICE_ACCOUNT --body "adk-deploy@agenticaigcplearn.iam.gserviceaccount.com"
+
+Write-Host "✓ WIF variables added to GitHub"
+```
+
+---
+
+### 🚀 Step 7.4: Trigger GitHub Actions Workflow
+
+Now your GitHub Actions pipeline can use these variables to automate builds and deployments.
+
+**Make a commit to trigger the workflow:**
+
+```powershell
+# Ensure you're on master branch
+git checkout master
+
+# Make a small change (e.g., update README or add timestamp)
+echo "# Last deployed: $(Get-Date)" >> README.md
+
+# Commit and push
+git add README.md
+git commit -m "✅ Enable CI/CD pipeline with GitHub variables and WIF"
+git push origin master
+
+Write-Host "✓ Workflow triggered - check GitHub Actions tab"
+```
+
+**Monitor the workflow:**
+
+```powershell
+# View workflow runs
+gh run list
+
+# Watch the latest run
+gh run watch
+
+# View detailed logs
+gh run view --log
+```
+
+---
+
+### 📋 GitHub Actions Workflow Using Variables
+
+Your `.github/workflows/deploy.yml` should look like this:
+
+```yaml
+name: Build and Deploy Agents
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    
+    steps:
+      # Authenticate to Google Cloud using WIF
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      
+      # Setup gcloud CLI
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # Setup Docker
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+      
+      # Authenticate Docker to Artifact Registry
+      - name: Authenticate Docker to GCR
+        run: |
+          gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+      
+      # Build and push Retriever image
+      - name: Build and push Retriever Agent
+        run: |
+          docker build -t ${{ vars.GCP_DOCKER_REGISTRY }}/retriever-agent:${{ github.sha }} \
+            agents/retriever_agent
+          docker push ${{ vars.GCP_DOCKER_REGISTRY }}/retriever-agent:${{ github.sha }}
+      
+      # Build and push Orchestrator image
+      - name: Build and push Orchestrator Agent
+        run: |
+          docker build -t ${{ vars.GCP_DOCKER_REGISTRY }}/orchestrator-agent:${{ github.sha }} \
+            agents/orchestrator_agent
+          docker push ${{ vars.GCP_DOCKER_REGISTRY }}/orchestrator-agent:${{ github.sha }}
+      
+      # Deploy Retriever to Cloud Run
+      - name: Deploy Retriever Agent
+        run: |
+          gcloud run deploy retriever-agent \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --region=${{ vars.GCP_REGION }} \
+            --image=${{ vars.GCP_DOCKER_REGISTRY }}/retriever-agent:${{ github.sha }} \
+            --allow-unauthenticated \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }},\
+              GOOGLE_CLOUD_LOCATION=${{ vars.GCP_REGION }},\
+              GOOGLE_GENAI_USE_VERTEXAI=true,\
+              RAG_CORPUS=${{ vars.RAG_CORPUS }},\
+              PUBLIC_URL=${{ vars.RETRIEVER_AGENT_URL }}"
+      
+      # Deploy Orchestrator to Cloud Run
+      - name: Deploy Orchestrator Agent
+        run: |
+          gcloud run deploy orchestrator-agent \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --region=${{ vars.GCP_REGION }} \
+            --image=${{ vars.GCP_DOCKER_REGISTRY }}/orchestrator-agent:${{ github.sha }} \
+            --allow-unauthenticated \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }},\
+              GOOGLE_CLOUD_LOCATION=${{ vars.GCP_REGION }},\
+              GOOGLE_GENAI_USE_VERTEXAI=true,\
+              RETRIEVER_AGENT_URL=${{ vars.RETRIEVER_AGENT_URL }}"
+      
+      # Notify deployment success
+      - name: Deployment Complete
+        run: |
+          echo "✅ Agents deployed successfully!"
+          echo "Retriever: ${{ vars.RETRIEVER_AGENT_URL }}"
+          echo "Orchestrator: ${{ vars.ORCHESTRATOR_AGENT_URL }}"
+```
+
+---
+
+### ✅ Step 7.5: Verify CI/CD Pipeline is Working
+
+**Check GitHub Actions runs:**
+
+```powershell
+# List recent workflow runs
+gh run list --limit=5
+
+# View status of latest run
+gh run view
+
+# Check if deployment succeeded
+gh run view --exit-status
+
+# Expected output: exit status 0 (success)
+```
+
+**Verify Cloud Run services were updated:**
+
+```powershell
+# Check deployed services
+gcloud run services list --project=agenticaigcplearn --region=europe-west4
+
+# Check deployment history
+gcloud run services describe retriever-agent --project=agenticaigcplearn --region=europe-west4 | grep "image:"
+
+# Should show latest image from workflow: gcr.../retriever-agent:COMMIT_SHA
+```
+
+---
+
+### 🎯 CI/CD Automation Benefits
+
+| Benefit | Before | After |
+|---------|--------|-------|
+| **Manual deployments** | Every change requires manual `docker build && docker push` | Automatic on every `git push` |
+| **Secret storage** | Store JSON keys in GitHub Secrets ❌ | No secrets, uses WIF tokens ✅ |
+| **Token lifecycle** | Long-lived keys (hard to rotate) | Short-lived tokens (15 min) |
+| **Audit trail** | Manual deployments not tracked | Every workflow run is logged |
+| **Test before deploy** | Can't run tests in pipeline | Can add unit/integration tests |
+| **Rollback** | Manual redeploy needed | Tag a previous commit and push |
+
+---
+
+### 💾 Commit Pipeline Configuration
+
+```powershell
+# After setting up variables and WIF, commit:
+git add .github/workflows/deploy.yml
+
+git commit -m "✅ Setup CI/CD pipeline with GitHub variables and WIF
+
+Features:
+- GitHub CLI variables for all configuration (no hardcoded values)
+- Workload Identity Federation (WIF) for secure authentication
+- Automatic Docker build on push to master
+- Automatic Cloud Run deployment
+- Uses ${{ vars.VARIABLE_NAME }} for dynamic values
+
+Variables configured:
+- GCP_PROJECT_ID, GCP_REGION, GCP_PROJECT_NUMBER
+- RAG_CORPUS, GCS_BUCKET, GCP_DOCKER_REGISTRY
+- RETRIEVER_AGENT_URL, ORCHESTRATOR_AGENT_URL
+- GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT
+
+Workflow:
+1. Push to master branch
+2. GitHub Actions triggers
+3. Authenticates via WIF (no secrets)
+4. Builds Docker images
+5. Pushes to Artifact Registry
+6. Deploys to Cloud Run
+7. Updates environment variables
+
+Next: Monitor workflow at https://github.com/abhimasum/GoogleCloudAi/actions"
+
+git push origin master
+```
+
+---
+
+## 🎓 What You've Learned - Full Journey
+
+✅ **Complete Learning Path Accomplished:**
+
+1. ✅ Google Cloud fundamentals (Projects, APIs, Billing)
+2. ✅ Cloud Storage for document management
+3. ✅ Vertex AI RAG Engine (embeddings, semantic search)
+4. ✅ Building AI agents with Google ADK
+5. ✅ A2A protocol for agent communication
+6. ✅ Local development and debugging
+7. ✅ Containerization (Docker)
+8. ✅ Serverless deployment (Cloud Run)
+9. ✅ Production A2A origin debugging & fixes
+10. ✅ GitHub Actions CI/CD automation
+11. ✅ Workload Identity Federation (secure auth)
+12. ✅ GitHub CLI for repository management
+
+**Your system is now:**
+- ✅ Running in production on Google Cloud
+- ✅ Using secure WIF authentication (no static keys)
+- ✅ Automating deployments with GitHub Actions
+- ✅ Configured entirely via GitHub variables
+- ✅ Ready for team collaboration and scaling
+
+---
 
 ### 🎯 What We're Doing (Technical Explanation)
 
