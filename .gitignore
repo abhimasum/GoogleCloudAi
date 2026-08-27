@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Environment / secrets
+.env
+*.env
+service-account*.json
+*.key.json
+
+# ADK local state
+*.db
+.adk/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
