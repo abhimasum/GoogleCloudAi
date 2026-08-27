@@ -29,6 +29,9 @@ CORPUS_DISPLAY_NAME = os.environ.get(
     "RAG_CORPUS_DISPLAY_NAME", "adk-sample-knowledge-base"
 )
 RAG_CORPUS_ID = os.environ.get("RAG_CORPUS_ID")
+# Note: RAG_GCS_SOURCE should be a bucket path, not a wildcard pattern
+# E.g., "gs://my-bucket" or "gs://my-bucket/docs/"
+# The SDK will discover all files recursively
 GCS_SOURCE = os.environ["RAG_GCS_SOURCE"]
 
 
@@ -44,6 +47,8 @@ def _get_or_create_corpus() -> rag.RagCorpus:
     embedding_model_config = rag.EmbeddingModelConfig(
         publisher_model="publishers/google/models/text-embedding-005"
     )
+    # Use Serverless mode for RAG Engine (required for new projects in us-central1)
+    # Serverless mode is the default; just ensure we're not specifying Spanner mode
     return rag.create_corpus(
         display_name=CORPUS_DISPLAY_NAME,
         embedding_model_config=embedding_model_config,
