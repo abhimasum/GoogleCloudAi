@@ -90,12 +90,12 @@ jobs:
           # Get access token
           TOKEN=$(gcloud auth print-access-token)
           
-          # Delete RAG corpus via REST API (using us-central1 endpoint for AI services)
-          # Note: RAG Engine uses us-central1 API endpoint even for europe-west4 resources
+          # Delete RAG corpus via REST API (using regional endpoint)
+          # Note: Corpus is in europe-west4 (us-central1 was restricted for new projects)
           RESPONSE=$(curl -s -w "\n%{http_code}" -X DELETE \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${REGION}/ragCorpora/${CORPUS_ID}")
+            "https://${REGION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${REGION}/ragCorpora/${CORPUS_ID}")
           
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "204" ]; then
