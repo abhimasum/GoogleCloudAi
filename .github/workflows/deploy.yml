@@ -149,3 +149,14 @@ jobs:
               --uri="${URL}" --http-method=POST \
               --oidc-service-account-email="scheduler-invoker@${PROJECT_ID}.iam.gserviceaccount.com"
           fi
+
+      - name: Trigger ingestion to update RAG corpus immediately
+        run: |
+          echo "📥 Triggering ingestion to update RAG corpus with latest documents..."
+          URL=$(gcloud run services describe ingestion --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')
+          curl -X POST "${URL}" \
+            -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --silent --show-error
+          echo "✓ Ingestion triggered successfully"

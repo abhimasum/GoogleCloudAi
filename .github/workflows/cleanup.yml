@@ -20,9 +20,9 @@ on:
           - "true"
           - "false"
       delete_rag_corpus:
-        description: "Delete RAG Corpus (knowledge base)? (Set to 'false' to KEEP)"
+        description: "Delete RAG Corpus (knowledge base)? (Set to 'true' to DELETE)"
         required: true
-        default: "true"
+        default: "false"
         type: choice
         options:
           - "true"
