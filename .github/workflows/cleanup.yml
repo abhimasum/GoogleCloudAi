@@ -87,11 +87,16 @@ jobs:
           echo "📚 Deleting RAG Corpus..."
           CORPUS_ID="4611686018427387904"
           
-          # Delete the RAG corpus using the correct API
-          gcloud ai rag-corpora delete \
-            "projects/${PROJECT_ID}/locations/${REGION}/ragCorpora/${CORPUS_ID}" \
-            --quiet 2>/dev/null && echo "   ✓ RAG Corpus deleted" || \
-            echo "   ⚠️  Could not delete corpus (may not exist or needs manual deletion)"
+          # Get access token
+          TOKEN=$(gcloud auth print-access-token)
+          
+          # Delete RAG corpus via REST API (no gcloud CLI support yet)
+          curl -X DELETE \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${REGION}/ragCorpora/${CORPUS_ID}" \
+            2>/dev/null && echo "   ✓ RAG Corpus deleted" || \
+            echo "   ⚠️  Could not delete corpus (may not exist or already deleted)"
 
       - name: "3️⃣ Delete Artifact Registry Images (if requested)"
         if: ${{ inputs.delete_docker_images == 'true' }}
@@ -126,8 +131,8 @@ jobs:
             echo "   ℹ️  Bucket is already empty"
           else
             echo "   Deleting all objects from gs://${BUCKET_NAME}..."
-            gsutil -m rm "gs://${BUCKET_NAME}/**" 2>/dev/null && echo "   ✓ Bucket contents deleted" || \
-            echo "   ⚠️  Bucket may be empty or not accessible"
+            gsutil -m rm -r "gs://${BUCKET_NAME}/*" && echo "   ✓ Bucket contents deleted" || \
+            echo "   ⚠️  Could not delete bucket contents"
           fi
 
       - name: "✅ Cleanup Complete"
