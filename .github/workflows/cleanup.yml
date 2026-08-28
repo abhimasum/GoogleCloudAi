@@ -4,29 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       delete_storage:
-        description: "Delete Cloud Storage bucket contents?"
-        required: true
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
-      delete_docker_images:
-        description: "Delete Artifact Registry images?"
+        description: "Delete Cloud Storage bucket contents? (Set to 'false' to KEEP)"
         required: true
         default: "true"
         type: choice
         options:
-          - "false"
           - "true"
-      delete_rag_corpus:
-        description: "Delete RAG Corpus (knowledge base)? - SELECT YES TO UPDATE DOCS"
+          - "false"
+      delete_docker_images:
+        description: "Delete Artifact Registry images? (Set to 'false' to KEEP)"
         required: true
-        default: "false"
+        default: "true"
         type: choice
         options:
-          - "false"
           - "true"
+          - "false"
+      delete_rag_corpus:
+        description: "Delete RAG Corpus (knowledge base)? (Set to 'false' to KEEP)"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 permissions:
   contents: read
