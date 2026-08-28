@@ -130,29 +130,25 @@ jobs:
           echo "💾 Deleting Cloud Storage bucket contents..."
           BUCKET_NAME="agenticaigcplearn-adk-docs"
           
-          # Check if bucket has any objects
-          OBJECT_COUNT=$(gcloud storage ls "gs://${BUCKET_NAME}" 2>/dev/null | wc -l)
+          # List all objects and delete them one by one (wildcard patterns don't work reliably)
+          echo "   Listing objects to delete..."
+          FILES=$(gcloud storage ls "gs://${BUCKET_NAME}" 2>/dev/null || echo "")
           
-          if [ "$OBJECT_COUNT" -eq 0 ]; then
+          if [ -z "$FILES" ]; then
             echo "   ℹ️  Bucket is already empty"
           else
-            echo "   Deleting all objects (including all versions) from gs://${BUCKET_NAME}..."
-            # Try to delete contents first
-            if gcloud storage rm -r -a "gs://${BUCKET_NAME}/**" 2>/dev/null; then
-              echo "   ✓ Bucket contents deleted"
-            else
-              # If contents deletion fails, delete the entire bucket (forces deletion of all contents)
-              echo "   ⚠️  Could not delete contents individually"
-              echo "   Attempting to delete entire bucket (will recreate empty bucket)..."
-              if gcloud storage buckets delete "gs://${BUCKET_NAME}" --quiet 2>/dev/null; then
-                echo "   ✓ Bucket deleted"
-                # Recreate empty bucket
-                gcloud storage buckets create "gs://${BUCKET_NAME}" --location=${REGION} --quiet 2>/dev/null && \
-                echo "   ✓ Empty bucket recreated" || echo "   ℹ️  Bucket will need manual recreation"
+            echo "   Deleting objects individually..."
+            DELETED=0
+            FAILED=0
+            for FILE in $FILES; do
+              if gcloud storage rm "$FILE" 2>/dev/null; then
+                DELETED=$((DELETED + 1))
               else
-                echo "   ⚠️  Could not delete bucket"
+                FAILED=$((FAILED + 1))
+                echo "   ⚠️  Failed to delete: $FILE"
               fi
-            fi
+            done
+            echo "   ✓ Deleted $DELETED objects, $FAILED failed"
           fi
 
       - name: "✅ Cleanup Complete"
