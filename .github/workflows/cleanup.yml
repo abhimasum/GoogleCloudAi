@@ -85,49 +85,50 @@ jobs:
         if: ${{ inputs.delete_rag_corpus == 'true' }}
         run: |
           echo "📚 Deleting RAG Corpus..."
-          RAG_CORPUS="${{ vars.RAG_CORPUS }}"
+          CORPUS_ID="4611686018427387904"
           
-          # Parse corpus resource name
-          # Expected format: projects/PROJECT_NUM/locations/REGION/ragCorpora/CORPUS_ID
-          
-          gcloud ai documents delete \
-            --project="${PROJECT_ID}" \
-            --location="${REGION}" \
-            --corpus-id="4611686018427387904" \
+          # Delete the RAG corpus using the correct API
+          gcloud ai rag-corpora delete \
+            "projects/${PROJECT_ID}/locations/${REGION}/ragCorpora/${CORPUS_ID}" \
             --quiet 2>/dev/null && echo "   ✓ RAG Corpus deleted" || \
-            (echo "   ⚠️  Attempting alternative deletion method..."; 
-             gcloud ai documents delete --corpus-id="4611686018427387904" \
-              --project="${PROJECT_ID}" --quiet 2>/dev/null && echo "   ✓ RAG Corpus deleted" || echo "   ⚠️  Could not delete corpus - may need manual deletion")
+            echo "   ⚠️  Could not delete corpus (may not exist or needs manual deletion)"
 
       - name: "3️⃣ Delete Artifact Registry Images (if requested)"
         if: ${{ inputs.delete_docker_images == 'true' }}
         run: |
           echo "🐳 Deleting Docker images from Artifact Registry..."
           
-          # Delete all images in the repository
-          gcloud artifacts docker images list \
+          # List and delete all images using xargs for proper variable passing
+          IMAGES=$(gcloud artifacts docker images list \
             "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}" \
             --project="${PROJECT_ID}" \
-            --format='value(image)' | while read IMAGE; do
-            echo "   Deleting $IMAGE..."
-            gcloud artifacts docker images delete "$IMAGE" \
+            --format='value(image)')
+          
+          if [ -z "$IMAGES" ]; then
+            echo "   ℹ️  No images found to delete"
+          else
+            echo "$IMAGES" | xargs -I {} gcloud artifacts docker images delete {} \
               --project="${PROJECT_ID}" \
-              --quiet 2>/dev/null && echo "   ✓ Deleted $IMAGE" || echo "   ⚠️  Could not delete $IMAGE"
-          done
+              --quiet 2>/dev/null && echo "   ✓ Images deleted" || echo "   ⚠️  Some images could not be deleted"
+          fi
           echo "   ✓ Docker images cleanup complete"
 
       - name: "4️⃣ Delete Cloud Storage Contents (if requested)"
         if: ${{ inputs.delete_storage == 'true' }}
         run: |
           echo "💾 Deleting Cloud Storage bucket contents..."
-          BUCKET="${{ vars.GCS_BUCKET }}"
+          BUCKET_NAME="agenticaigcplearn-adk-docs"
           
-          # Properly delete all objects in the bucket
-          echo "   Listing objects to delete..."
-          gsutil -m rm -r "${BUCKET}/*" && echo "   ✓ Bucket contents deleted" || \
-          (echo "   ⚠️  Could not delete via wildcard, trying alternative method..."; 
-           gsutil -m rm "gs://agenticaigcplearn-adk-docs/*" 2>/dev/null && echo "   ✓ Bucket contents deleted" || 
-           echo "   ⚠️  Bucket may be empty or not accessible")
+          # Check if bucket has any objects
+          OBJECT_COUNT=$(gsutil ls "gs://${BUCKET_NAME}" 2>/dev/null | wc -l)
+          
+          if [ "$OBJECT_COUNT" -eq 0 ]; then
+            echo "   ℹ️  Bucket is already empty"
+          else
+            echo "   Deleting all objects from gs://${BUCKET_NAME}..."
+            gsutil -m rm "gs://${BUCKET_NAME}/**" 2>/dev/null && echo "   ✓ Bucket contents deleted" || \
+            echo "   ⚠️  Bucket may be empty or not accessible"
+          fi
 
       - name: "✅ Cleanup Complete"
         run: |
