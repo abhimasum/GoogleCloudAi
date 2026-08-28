@@ -102,6 +102,12 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      - name: Upload documents to Cloud Storage
+        run: |
+          echo "📤 Uploading documents from data/sample_docs/ to gs://${{ vars.GCS_BUCKET }}/"
+          gcloud storage cp data/sample_docs/*.md "gs://${{ vars.GCS_BUCKET }}/"
+          echo "✓ Documents uploaded"
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
 
@@ -119,7 +125,7 @@ jobs:
             --image="${IMAGE}" \
             --no-allow-unauthenticated \
             --timeout=900 \
-            --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},RAG_GCS_SOURCE=gs://${{ vars.GCS_BUCKET }}/docs/*,RAG_CORPUS_ID=${{ vars.RAG_CORPUS_ID }}"
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},RAG_GCS_SOURCE=gs://${{ vars.GCS_BUCKET }},RAG_CORPUS_ID=${{ vars.RAG_CORPUS_ID }}"
 
       - name: Allow the Cloud Scheduler service account to invoke this service
         run: |
