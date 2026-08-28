@@ -122,7 +122,12 @@ jobs:
           echo "💾 Deleting Cloud Storage bucket contents..."
           BUCKET="${{ vars.GCS_BUCKET }}"
           
-          gsutil -m rm -r "$BUCKET/*" 2>/dev/null && echo "   ✓ Bucket contents deleted" || echo "   ⚠️  Bucket may be empty or not found"
+          # Properly delete all objects in the bucket
+          echo "   Listing objects to delete..."
+          gsutil -m rm -r "${BUCKET}/*" && echo "   ✓ Bucket contents deleted" || \
+          (echo "   ⚠️  Could not delete via wildcard, trying alternative method..."; 
+           gsutil -m rm "gs://agenticaigcplearn-adk-docs/*" 2>/dev/null && echo "   ✓ Bucket contents deleted" || 
+           echo "   ⚠️  Bucket may be empty or not accessible")
 
       - name: "✅ Cleanup Complete"
         run: |
