@@ -90,13 +90,19 @@ jobs:
           # Get access token
           TOKEN=$(gcloud auth print-access-token)
           
-          # Delete RAG corpus via REST API (no gcloud CLI support yet)
-          curl -X DELETE \
+          # Delete RAG corpus via REST API (using us-central1 endpoint for AI services)
+          # Note: RAG Engine uses us-central1 API endpoint even for europe-west4 resources
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X DELETE \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            "https://aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${REGION}/ragCorpora/${CORPUS_ID}" \
-            2>/dev/null && echo "   ✓ RAG Corpus deleted" || \
-            echo "   ⚠️  Could not delete corpus (may not exist or already deleted)"
+            "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${REGION}/ragCorpora/${CORPUS_ID}")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "204" ]; then
+            echo "   ✓ RAG Corpus deleted"
+          else
+            echo "   ⚠️  Could not delete corpus (HTTP $HTTP_CODE) - may not exist or already deleted"
+          fi
 
       - name: "3️⃣ Delete Artifact Registry Images (if requested)"
         if: ${{ inputs.delete_docker_images == 'true' }}
@@ -125,13 +131,14 @@ jobs:
           BUCKET_NAME="agenticaigcplearn-adk-docs"
           
           # Check if bucket has any objects
-          OBJECT_COUNT=$(gsutil ls "gs://${BUCKET_NAME}" 2>/dev/null | wc -l)
+          OBJECT_COUNT=$(gcloud storage ls "gs://${BUCKET_NAME}" 2>/dev/null | wc -l)
           
           if [ "$OBJECT_COUNT" -eq 0 ]; then
             echo "   ℹ️  Bucket is already empty"
           else
-            echo "   Deleting all objects from gs://${BUCKET_NAME}..."
-            gsutil -m rm -r "gs://${BUCKET_NAME}/*" && echo "   ✓ Bucket contents deleted" || \
+            echo "   Deleting all objects (including all versions) from gs://${BUCKET_NAME}..."
+            # Use gcloud storage instead of gsutil, with -r for recursive and -a for all versions
+            gcloud storage rm -r -a "gs://${BUCKET_NAME}/**" 2>/dev/null && echo "   ✓ Bucket contents deleted" || \
             echo "   ⚠️  Could not delete bucket contents"
           fi
 
