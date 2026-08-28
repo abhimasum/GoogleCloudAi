@@ -137,9 +137,22 @@ jobs:
             echo "   ℹ️  Bucket is already empty"
           else
             echo "   Deleting all objects (including all versions) from gs://${BUCKET_NAME}..."
-            # Use gcloud storage instead of gsutil, with -r for recursive and -a for all versions
-            gcloud storage rm -r -a "gs://${BUCKET_NAME}/**" 2>/dev/null && echo "   ✓ Bucket contents deleted" || \
-            echo "   ⚠️  Could not delete bucket contents"
+            # Try to delete contents first
+            if gcloud storage rm -r -a "gs://${BUCKET_NAME}/**" 2>/dev/null; then
+              echo "   ✓ Bucket contents deleted"
+            else
+              # If contents deletion fails, delete the entire bucket (forces deletion of all contents)
+              echo "   ⚠️  Could not delete contents individually"
+              echo "   Attempting to delete entire bucket (will recreate empty bucket)..."
+              if gcloud storage buckets delete "gs://${BUCKET_NAME}" --quiet 2>/dev/null; then
+                echo "   ✓ Bucket deleted"
+                # Recreate empty bucket
+                gcloud storage buckets create "gs://${BUCKET_NAME}" --location=${REGION} --quiet 2>/dev/null && \
+                echo "   ✓ Empty bucket recreated" || echo "   ℹ️  Bucket will need manual recreation"
+              else
+                echo "   ⚠️  Could not delete bucket"
+              fi
+            fi
           fi
 
       - name: "✅ Cleanup Complete"
