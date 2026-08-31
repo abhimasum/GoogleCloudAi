@@ -102,13 +102,36 @@ try:
 except Exception as e:
     print(f"✓ Table {states_table_id} already exists")
 
-# Insert sample state data (Indian states)
+# Insert all 28 states of India
 states_data = [
-    {"id": 1, "country_id": 1, "name": "Maharashtra", "capital": "Mumbai", "population": 123000000, "area_km2": 307713.0},
-    {"id": 2, "country_id": 1, "name": "Karnataka", "capital": "Bengaluru", "population": 68000000, "area_km2": 191791.0},
-    {"id": 3, "country_id": 1, "name": "Tamil Nadu", "capital": "Chennai", "population": 77000000, "area_km2": 130060.0},
-    {"id": 4, "country_id": 1, "name": "Uttar Pradesh", "capital": "Lucknow", "population": 241000000, "area_km2": 240928.0},
-    {"id": 5, "country_id": 1, "name": "West Bengal", "capital": "Kolkata", "population": 100000000, "area_km2": 88752.0},
+    {"id": 1, "country_id": 1, "name": "Andhra Pradesh", "capital": "Amaravati", "population": 49386799, "area_km2": 160205.0},
+    {"id": 2, "country_id": 1, "name": "Arunachal Pradesh", "capital": "Itanagar", "population": 1382611, "area_km2": 83743.0},
+    {"id": 3, "country_id": 1, "name": "Assam", "capital": "Dispur", "population": 31169272, "area_km2": 78438.0},
+    {"id": 4, "country_id": 1, "name": "Bihar", "capital": "Patna", "population": 103804637, "area_km2": 94163.0},
+    {"id": 5, "country_id": 1, "name": "Chhattisgarh", "capital": "Raipur", "population": 25540196, "area_km2": 135192.0},
+    {"id": 6, "country_id": 1, "name": "Goa", "capital": "Panaji", "population": 1457723, "area_km2": 3702.0},
+    {"id": 7, "country_id": 1, "name": "Gujarat", "capital": "Gandhinagar", "population": 60383628, "area_km2": 196244.0},
+    {"id": 8, "country_id": 1, "name": "Haryana", "capital": "Chandigarh", "population": 25353081, "area_km2": 44212.0},
+    {"id": 9, "country_id": 1, "name": "Himachal Pradesh", "capital": "Shimla", "population": 6856509, "area_km2": 55673.0},
+    {"id": 10, "country_id": 1, "name": "Jharkhand", "capital": "Ranchi", "population": 32966238, "area_km2": 79716.0},
+    {"id": 11, "country_id": 1, "name": "Karnataka", "capital": "Bengaluru", "population": 61130704, "area_km2": 191791.0},
+    {"id": 12, "country_id": 1, "name": "Kerala", "capital": "Thiruvananthapuram", "population": 33387677, "area_km2": 38852.0},
+    {"id": 13, "country_id": 1, "name": "Madhya Pradesh", "capital": "Bhopal", "population": 72597565, "area_km2": 308245.0},
+    {"id": 14, "country_id": 1, "name": "Maharashtra", "capital": "Mumbai", "population": 112372972, "area_km2": 307713.0},
+    {"id": 15, "country_id": 1, "name": "Manipur", "capital": "Imphal", "population": 2721756, "area_km2": 22327.0},
+    {"id": 16, "country_id": 1, "name": "Meghalaya", "capital": "Shillong", "population": 2964007, "area_km2": 22429.0},
+    {"id": 17, "country_id": 1, "name": "Mizoram", "capital": "Aizawl", "population": 1091014, "area_km2": 21081.0},
+    {"id": 18, "country_id": 1, "name": "Nagaland", "capital": "Kohima", "population": 1980602, "area_km2": 16579.0},
+    {"id": 19, "country_id": 1, "name": "Odisha", "capital": "Bhubaneswar", "population": 41947358, "area_km2": 155707.0},
+    {"id": 20, "country_id": 1, "name": "Punjab", "capital": "Chandigarh", "population": 27704236, "area_km2": 50362.0},
+    {"id": 21, "country_id": 1, "name": "Rajasthan", "capital": "Jaipur", "population": 68621012, "area_km2": 342239.0},
+    {"id": 22, "country_id": 1, "name": "Sikkim", "capital": "Gangtok", "population": 607688, "area_km2": 7096.0},
+    {"id": 23, "country_id": 1, "name": "Tamil Nadu", "capital": "Chennai", "population": 72138958, "area_km2": 130060.0},
+    {"id": 24, "country_id": 1, "name": "Telangana", "capital": "Hyderabad", "population": 35193978, "area_km2": 112077.0},
+    {"id": 25, "country_id": 1, "name": "Tripura", "capital": "Agartala", "population": 3671032, "area_km2": 10486.0},
+    {"id": 26, "country_id": 1, "name": "Uttar Pradesh", "capital": "Lucknow", "population": 199581477, "area_km2": 240928.0},
+    {"id": 27, "country_id": 1, "name": "Uttarakhand", "capital": "Dehradun", "population": 10116752, "area_km2": 53483.0},
+    {"id": 28, "country_id": 1, "name": "West Bengal", "capital": "Kolkata", "population": 91347736, "area_km2": 88752.0},
 ]
 
 if not check_table_has_data(states_table_id):
@@ -144,16 +167,16 @@ except Exception as e:
 
 # Insert sample district data
 districts_data = [
-    # Maharashtra districts
-    {"id": 1, "state_id": 1, "name": "Mumbai", "headquarters": "Mumbai", "population": 12442373, "area_km2": 603.4},
-    {"id": 2, "state_id": 1, "name": "Pune", "headquarters": "Pune", "population": 9429408, "area_km2": 15642.0},
-    {"id": 3, "state_id": 1, "name": "Nagpur", "headquarters": "Nagpur", "population": 4653171, "area_km2": 9892.0},
-    # Karnataka districts
-    {"id": 4, "state_id": 2, "name": "Bengaluru Urban", "headquarters": "Bengaluru", "population": 9621551, "area_km2": 2190.0},
-    {"id": 5, "state_id": 2, "name": "Mysuru", "headquarters": "Mysuru", "population": 3001127, "area_km2": 6854.0},
-    # Tamil Nadu districts
-    {"id": 6, "state_id": 3, "name": "Chennai", "headquarters": "Chennai", "population": 7088000, "area_km2": 426.0},
-    {"id": 7, "state_id": 3, "name": "Coimbatore", "headquarters": "Coimbatore", "population": 3458045, "area_km2": 7469.0},
+    # Maharashtra districts (state_id: 14)
+    {"id": 1, "state_id": 14, "name": "Mumbai", "headquarters": "Mumbai", "population": 12442373, "area_km2": 603.4},
+    {"id": 2, "state_id": 14, "name": "Pune", "headquarters": "Pune", "population": 9429408, "area_km2": 15642.0},
+    {"id": 3, "state_id": 14, "name": "Nagpur", "headquarters": "Nagpur", "population": 4653171, "area_km2": 9892.0},
+    # Karnataka districts (state_id: 11)
+    {"id": 4, "state_id": 11, "name": "Bengaluru Urban", "headquarters": "Bengaluru", "population": 9621551, "area_km2": 2190.0},
+    {"id": 5, "state_id": 11, "name": "Mysuru", "headquarters": "Mysuru", "population": 3001127, "area_km2": 6854.0},
+    # Tamil Nadu districts (state_id: 23)
+    {"id": 6, "state_id": 23, "name": "Chennai", "headquarters": "Chennai", "population": 7088000, "area_km2": 426.0},
+    {"id": 7, "state_id": 23, "name": "Coimbatore", "headquarters": "Coimbatore", "population": 3458045, "area_km2": 7469.0},
 ]
 
 if not check_table_has_data(districts_table_id):
@@ -171,3 +194,5 @@ else:
 print("\n✅ BigQuery setup complete!")
 print(f"Dataset: {dataset_id}")
 print(f"Tables: countries ({len(countries_data)}), states ({len(states_data)}), districts ({len(districts_data)})")
+print("\nNote: The BigQuery agent currently uses embedded data in its instruction,")
+print("not database queries. This setup creates tables for consistency and future use.")
