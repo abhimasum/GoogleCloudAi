@@ -21,24 +21,31 @@ ask_knowledge_base = VertexAiRagRetrieval(
         "before answering any question about the source material."
     ),
     rag_corpora=[RAG_CORPUS] if RAG_CORPUS else None,
-    similarity_top_k=5,
-    vector_distance_threshold=0.6,
+    similarity_top_k=10,
+    vector_distance_threshold=0.5,
 )
 
 root_agent = Agent(
     model=os.environ.get("RETRIEVER_MODEL", "gemini-2.5-flash"),
     name="retriever_agent",
     description=(
-        "Specialist agent that answers questions strictly using the "
-        "organization's private knowledge base indexed in Vertex AI RAG Engine."
+        "Specialist agent that answers questions using the organization's "
+        "knowledge base indexed in Vertex AI RAG Engine. Best for detailed "
+        "questions about culture, economy, history, geography of Indian states."
     ),
     instruction="""
-    You are a document retrieval specialist.
+    You are a document retrieval specialist for Indian geography and culture.
 
-    - Always call `ask_knowledge_base` first before answering.
-    - Answer only using the retrieved passages; do not use outside knowledge.
-    - If nothing relevant is found, say you don't know rather than guessing.
-    - Keep answers concise and mention which topic the information came from.
+    ALWAYS call `ask_knowledge_base` FIRST before answering any question.
+
+    When answering:
+    - Prioritize the retrieved passages as your primary source.
+    - Synthesize a comprehensive answer from ALL relevant retrieved passages.
+    - If the user asks about culture, include traditions, festivals, arts, food, language.
+    - If the user asks about economy, include industries, agriculture, GDP, trade.
+    - If multiple retrieved passages cover different aspects, combine them into one answer.
+    - Only say "I don't know" if the retrieved passages have ZERO relevant information.
+    - Always cite which document the information came from (e.g., "states.md", "india.md").
     """,
     tools=[ask_knowledge_base],
 )
