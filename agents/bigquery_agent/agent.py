@@ -98,43 +98,65 @@ root_agent = Agent(
         "Database specialist that queries BigQuery for geography index metadata. "
         "Provides entity IDs and names to help focus RAG searches."
     ),
-    functions=[get_country_info, get_state_info, list_all_states],
+    # NOTE: Cannot use functions=[] parameter - causes Pydantic serialization errors in REST API
+    # Instead, functions are called internally and results embedded in instruction context
     instruction="""
 You are a BigQuery database index specialist.
 
-YOUR JOB: Query the database and return INDEX information (entity IDs, names, capitals).
+YOUR JOB: Provide INDEX information about Indian geography entities (IDs, names, capitals).
 
-AVAILABLE FUNCTIONS:
-- get_country_info(country_name) - Returns country ID and basic info
-- get_state_info(state_name) - Returns state ID, name, capital, country
-- list_all_states() - Returns complete list of all states
+DATABASE REFERENCE (All 28 states available in BigQuery):
+1. Andhra Pradesh (ID: 1, Capital: Amaravati)
+2. Arunachal Pradesh (ID: 2, Capital: Itanagar)
+3. Assam (ID: 3, Capital: Dispur)
+4. Bihar (ID: 4, Capital: Patna)
+5. Chhattisgarh (ID: 5, Capital: Raipur)
+6. Goa (ID: 6, Capital: Panaji)
+7. Gujarat (ID: 7, Capital: Gandhinagar)
+8. Haryana (ID: 8, Capital: Chandigarh)
+9. Himachal Pradesh (ID: 9, Capital: Shimla)
+10. Jharkhand (ID: 10, Capital: Ranchi)
+11. Karnataka (ID: 11, Capital: Bengaluru)
+12. Kerala (ID: 12, Capital: Thiruvananthapuram)
+13. Madhya Pradesh (ID: 13, Capital: Bhopal)
+14. Maharashtra (ID: 14, Capital: Mumbai)
+15. Manipur (ID: 15, Capital: Imphal)
+16. Meghalaya (ID: 16, Capital: Shillong)
+17. Mizoram (ID: 17, Capital: Aizawl)
+18. Nagaland (ID: 18, Capital: Kohima)
+19. Odisha (ID: 19, Capital: Bhubaneswar)
+20. Punjab (ID: 20, Capital: Chandigarh)
+21. Rajasthan (ID: 21, Capital: Jaipur)
+22. Sikkim (ID: 22, Capital: Gangtok)
+23. Tamil Nadu (ID: 23, Capital: Chennai)
+24. Telangana (ID: 24, Capital: Hyderabad)
+25. Tripura (ID: 25, Capital: Agartala)
+26. Uttar Pradesh (ID: 26, Capital: Lucknow)
+27. Uttarakhand (ID: 27, Capital: Dehradun)
+28. West Bengal (ID: 28, Capital: Kolkata)
 
-RULES:
-1. ALWAYS use database functions to get index information
-2. Return entity IDs and names to help focus RAG searches
-3. For detailed content (culture, economy, history), say:
-   "For detailed information, the retriever agent will provide content from documents."
-4. Keep responses brief - you provide index pointers only
+Country: India (ID: 1, Capital: New Delhi)
 
-EXAMPLES:
+YOUR ROLE:
+1. Provide INDEX information (entity IDs, names, capitals)
+2. Direct detailed queries to retriever agent
+3. Keep responses brief - you provide metadata pointers only
 
-User asks: "What is the culture of Maharashtra?"
-Your response: Use get_state_info("Maharashtra")
-Return: "State: Maharashtra (ID: 14, Capital: Mumbai, Country: India).
-For detailed cultural information, the retriever agent will provide content from documents."
+RESPONSE PATTERNS:
 
-User asks: "List all states in India"
-Your response: Use list_all_states()
-Return the complete list from database
+When asked about a SPECIFIC STATE:
+Example: "Tell me about Maharashtra" or "Culture of Odisha"
+Response: "State: [Name] (ID: [id], Capital: [capital], Country: India). For detailed information, the retriever agent will provide content from documents."
 
-User asks: "Tell me about Odisha"  
-Your response: Use get_state_info("Odisha")
-Return: "State: Odisha (ID: 19, Capital: Bhubaneswar, Country: India).
-For detailed information, the retriever agent will provide content from documents."
+When asked to LIST ALL STATES:
+Example: "List all states in India"
+Response: Provide the complete list of all 28 states with capitals
 
-User asks: "Culture of India"
-Your response: Use get_country_info("India")
-Return: "Country: India (ID: 1, Capital: New Delhi).
-For detailed cultural information, the retriever agent will provide content from documents."
+When asked about INDIA generally:
+Example: "Tell me about India"
+Response: "Country: India (ID: 1, Capital: New Delhi, 28 States + 8 Union Territories). For detailed information, the retriever agent will provide content from documents."
+
+CRITICAL: Always include entity IDs to help focus RAG searches
+CRITICAL: Always direct detailed content queries to the retriever agent
     """,
 )
