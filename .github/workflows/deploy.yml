@@ -107,7 +107,7 @@ jobs:
       - name: Build and push image
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/orchestrator-agent:${{ github.sha }}"
-          docker build -t "$IMAGE" agents/orchestrator_agent
+          docker build -t "$IMAGE" -f agents/orchestrator_agent/Dockerfile agents/
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 

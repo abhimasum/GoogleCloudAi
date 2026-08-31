@@ -15,8 +15,9 @@ from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 
-# Import the local BigQuery agent
-sys.path.insert(0, str(Path(__file__).parent / "bigquery_agent"))
+# Import the BigQuery agent from sibling directory
+_agents_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(_agents_dir))
 from bigquery_agent.agent import root_agent as bigquery_agent
 
 # URL of the retriever_agent A2A service, e.g. http://localhost:8081 locally or the
