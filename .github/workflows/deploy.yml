@@ -200,7 +200,7 @@ jobs:
             --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=true,RETRIEVER_AGENT_URL=${{ needs.deploy-retriever.outputs.retriever_url }}"
 
   deploy-ingestion:
-    needs: [setup-bigquery, deploy-retriever]
+    needs: [deploy-orchestrator]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
