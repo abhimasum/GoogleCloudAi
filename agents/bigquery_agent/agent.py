@@ -1,133 +1,140 @@
-"""BigQuery agent: provides metadata about countries, states, and districts.
+"""BigQuery agent: queries BigQuery database for geography index metadata.
 
-This agent responds to geography questions using structured data about
-India's geography. It helps the orchestrator provide context to the 
-retriever agent for RAG searches.
+This agent provides entity IDs and names from the database to help the 
+retriever agent focus RAG searches. Returns INDEX information only.
 """
 
 import os
+from google.cloud import bigquery
 from google.adk.agents import Agent
+
+
+# Initialize BigQuery client
+_project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+_dataset_id = os.environ.get("BQ_DATASET", "geography_index")
+_bq_client = bigquery.Client(project=_project_id) if _project_id else None
+
+
+def get_country_info(country_name: str = "India") -> str:
+    """Get country index from database."""
+    if not _bq_client:
+        return "Country: India (ID: 1, Capital: New Delhi)"
+    
+    try:
+        query = f"""
+        SELECT id, name, capital
+        FROM `{_project_id}.{_dataset_id}.countries`
+        WHERE LOWER(name) = LOWER(@country_name)
+        LIMIT 1
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("country_name", "STRING", country_name)]
+        )
+        results = list(_bq_client.query(query, job_config=job_config).result())
+        
+        if results:
+            row = results[0]
+            return f"Country: {row.name} (ID: {row.id}, Capital: {row.capital})"
+        return f"Country '{country_name}' not found in database"
+    except Exception as e:
+        return f"Database error: {str(e)}"
+
+
+def get_state_info(state_name: str) -> str:
+    """Get state index from database."""
+    if not _bq_client:
+        return f"State: {state_name} (database query not available)"
+    
+    try:
+        query = f"""
+        SELECT s.id, s.name, s.capital, c.name as country_name
+        FROM `{_project_id}.{_dataset_id}.states` s
+        JOIN `{_project_id}.{_dataset_id}.countries` c ON s.country_id = c.id
+        WHERE LOWER(s.name) = LOWER(@state_name)
+        OR LOWER(s.name) LIKE LOWER(@state_pattern)
+        LIMIT 1
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("state_name", "STRING", state_name),
+                bigquery.ScalarQueryParameter("state_pattern", "STRING", f"%{state_name}%")
+            ]
+        )
+        results = list(_bq_client.query(query, job_config=job_config).result())
+        
+        if results:
+            row = results[0]
+            return f"State: {row.name} (ID: {row.id}, Capital: {row.capital}, Country: {row.country_name})"
+        return f"State '{state_name}' not found in database"
+    except Exception as e:
+        return f"Database error: {str(e)}"
+
+
+def list_all_states() -> str:
+    """List all states from database."""
+    if not _bq_client:
+        return "Database query not available - 28 states exist in India"
+    
+    try:
+        query = f"""
+        SELECT id, name, capital
+        FROM `{_project_id}.{_dataset_id}.states`
+        ORDER BY name
+        """
+        results = list(_bq_client.query(query).result())
+        
+        if results:
+            states_list = [f"- {row.name} (Capital: {row.capital})" for row in results]
+            return f"India has {len(results)} states:\n" + "\n".join(states_list)
+        return "No states found in database"
+    except Exception as e:
+        return f"Database error: {str(e)}"
 
 
 root_agent = Agent(
     model=os.environ.get("BIGQUERY_MODEL", "gemini-2.5-flash"),
     name="bigquery_agent",
     description=(
-        "Specialist agent for querying structured geography metadata. "
-        "Provides IDs and indices for countries, states, and districts."
+        "Database specialist that queries BigQuery for geography index metadata. "
+        "Provides entity IDs and names to help focus RAG searches."
     ),
+    functions=[get_country_info, get_state_info, list_all_states],
     instruction="""
-You are a geography metadata specialist. You have access to structured data
-about India's geography and provide specific IDs and metadata to help focus searches.
+You are a BigQuery database index specialist.
 
-GEOGRAPHY REFERENCE:
-===============================================
+YOUR JOB: Query the database and return INDEX information (entity IDs, names, capitals).
 
-COUNTRIES:
-- India (id: 1)
-  - Capital: New Delhi
-  - Population: 1.428 billion
-  - Area: 3,287,263 km²
-  - Total: 28 States + 8 Union Territories
+AVAILABLE FUNCTIONS:
+- get_country_info(country_name) - Returns country ID and basic info
+- get_state_info(state_name) - Returns state ID, name, capital, country
+- list_all_states() - Returns complete list of all states
 
-28 STATES OF INDIA:
-1. Andhra Pradesh (Capital: Amaravati)
-2. Arunachal Pradesh (Capital: Itanagar)
-3. Assam (Capital: Dispur)
-4. Bihar (Capital: Patna)
-5. Chhattisgarh (Capital: Raipur)
-6. Goa (Capital: Panaji)
-7. Gujarat (Capital: Gandhinagar)
-8. Haryana (Capital: Chandigarh)
-9. Himachal Pradesh (Capital: Shimla)
-10. Jharkhand (Capital: Ranchi)
-11. Karnataka (Capital: Bengaluru)
-12. Kerala (Capital: Thiruvananthapuram)
-13. Madhya Pradesh (Capital: Bhopal)
-14. Maharashtra (Capital: Mumbai)
-15. Manipur (Capital: Imphal)
-16. Meghalaya (Capital: Shillong)
-17. Mizoram (Capital: Aizawl)
-18. Nagaland (Capital: Kohima)
-19. Odisha (Capital: Bhubaneswar)
-20. Punjab (Capital: Chandigarh)
-21. Rajasthan (Capital: Jaipur)
-22. Sikkim (Capital: Gangtok)
-23. Tamil Nadu (Capital: Chennai)
-24. Telangana (Capital: Hyderabad)
-25. Tripura (Capital: Agartala)
-26. Uttar Pradesh (Capital: Lucknow)
-27. Uttarakhand (Capital: Dehradun)
-28. West Bengal (Capital: Kolkata)
-
-8 UNION TERRITORIES:
-29. Andaman and Nicobar Islands (Capital: Sri Vijaya Puram)
-30. Chandigarh (Capital: Chandigarh)
-31. Dadra and Nagar Haveli and Daman and Diu (Capital: Daman)
-32. Delhi (Capital: Delhi)
-33. Jammu and Kashmir (Capital: Srinagar/Jammu)
-34. Ladakh (Capital: Leh)
-35. Lakshadweep (Capital: Kavaratti)
-36. Puducherry (Capital: Puducherry)
-
-NOTE: For detailed information about culture, economy, history, etc., 
-the user's query should be delegated to the retriever_agent which has 
-access to comprehensive RAG documents
-
-===============================================
-
-YOUR ROLE:
-1. Provide structured geography metadata (names, capitals, counts)
-2. List all states/UTs when asked
-3. Give basic identifiers to help focus RAG searches
-4. For DETAILED queries (culture, economy, history, etc.), clearly state:
-   "For detailed information, please refer to the retriever agent's response."
-
-RESPONSE GUIDELINES:
-- For "list all states": Provide complete list of all 28 states
-- For "capital of X": Give capital name only
-- For "culture/economy/history": Say "See retriever agent for details"
-- Keep responses brief and structured
+RULES:
+1. ALWAYS use database functions to get index information
+2. Return entity IDs and names to help focus RAG searches
+3. For detailed content (culture, economy, history), say:
+   "For detailed information, the retriever agent will provide content from documents."
+4. Keep responses brief - you provide index pointers only
 
 EXAMPLES:
 
-Q: "List all states in India"
-A: "India has 28 states:
-   1. Andhra Pradesh (Amaravati)
-   2. Arunachal Pradesh (Itanagar)
-   3. Assam (Dispur)
-   4. Bihar (Patna)
-   5. Chhattisgarh (Raipur)
-   6. Goa (Panaji)
-   7. Gujarat (Gandhinagar)
-   8. Haryana (Chandigarh)
-   9. Himachal Pradesh (Shimla)
-   10. Jharkhand (Ranchi)
-   11. Karnataka (Bengaluru)
-   12. Kerala (Thiruvananthapuram)
-   13. Madhya Pradesh (Bhopal)
-   14. Maharashtra (Mumbai)
-   15. Manipur (Imphal)
-   16. Meghalaya (Shillong)
-   17. Mizoram (Aizawl)
-   18. Nagaland (Kohima)
-   19. Odisha (Bhubaneswar)
-   20. Punjab (Chandigarh)
-   21. Rajasthan (Jaipur)
-   22. Sikkim (Gangtok)
-   23. Tamil Nadu (Chennai)
-   24. Telangana (Hyderabad)
-   25. Tripura (Agartala)
-   26. Uttar Pradesh (Lucknow)
-   27. Uttarakhand (Dehradun)
-   28. West Bengal (Kolkata)
-   
-   Plus 8 Union Territories."
+User asks: "What is the culture of Maharashtra?"
+Your response: Use get_state_info("Maharashtra")
+Return: "State: Maharashtra (ID: 14, Capital: Mumbai, Country: India).
+For detailed cultural information, the retriever agent will provide content from documents."
 
-Q: "What is the capital of Maharashtra?"
-A: "The capital of Maharashtra is Mumbai."
+User asks: "List all states in India"
+Your response: Use list_all_states()
+Return the complete list from database
 
-Q: "Tell me about the culture of Maharashtra"
-A: "For detailed cultural information about Maharashtra, see the retriever agent's response which has comprehensive data from documents."
+User asks: "Tell me about Odisha"  
+Your response: Use get_state_info("Odisha")
+Return: "State: Odisha (ID: 19, Capital: Bhubaneswar, Country: India).
+For detailed information, the retriever agent will provide content from documents."
+
+User asks: "Culture of India"
+Your response: Use get_country_info("India")
+Return: "Country: India (ID: 1, Capital: New Delhi).
+For detailed cultural information, the retriever agent will provide content from documents."
     """,
 )
