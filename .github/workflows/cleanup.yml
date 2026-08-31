@@ -85,7 +85,12 @@ jobs:
         if: ${{ inputs.delete_rag_corpus == 'true' }}
         run: |
           echo "📚 Deleting RAG Corpus..."
-          CORPUS_ID="4611686018427387904"
+          CORPUS_ID="${{ vars.RAG_CORPUS_ID }}"
+          
+          if [ -z "$CORPUS_ID" ]; then
+            echo "   ⚠️  RAG_CORPUS_ID not set in GitHub variables"
+            exit 0
+          fi
           
           # Get access token
           TOKEN=$(gcloud auth print-access-token)

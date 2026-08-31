@@ -1,0 +1,19 @@
+# Combined requirements for local testing
+# Includes all dependencies from orchestrator, retriever, and infra
+
+# Core ADK framework with A2A support
+google-adk[a2a]>=1.19.0
+
+# GCP services
+google-cloud-bigquery>=3.25.0
+google-cloud-aiplatform>=1.75.0
+
+# BigQuery data types
+db-dtypes>=1.3.0
+
+# Environment configuration
+python-dotenv>=1.0.1
+
+# Web server (included in ADK but explicit for clarity)
+uvicorn>=0.30.0
+starlette>=0.37.0

@@ -6,8 +6,15 @@ on:
     paths:
       - "agents/**"
       - "ingestion/**"
+      - "infra/**"
       - ".github/workflows/deploy.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      cleanup_before_deploy:
+        description: "Clean up old resources before deploying?"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -19,7 +26,57 @@ env:
   AR_REPO: adk-agents
 
 jobs:
+  cleanup-old-resources:
+    if: ${{ github.event.inputs.cleanup_before_deploy == 'true' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧹 Cleanup old deployments
+        run: |
+          echo "🧹 Cleaning up old resources before deployment..."
+          echo "This ensures a clean slate for the new deployment."
+      
+      - uses: actions/checkout@v4
+      
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      
+      - uses: google-github-actions/setup-gcloud@v2
+      
+      - name: Delete old Cloud Run services (will be recreated)
+        run: |
+          echo "🚀 Deleting old Cloud Run services..."
+          SERVICES=("retriever-agent" "orchestrator-agent" "ingestion")
+          for SERVICE in "${SERVICES[@]}"; do
+            gcloud run services delete "$SERVICE" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --quiet 2>/dev/null && echo "✓ $SERVICE deleted" || echo "ℹ️ $SERVICE not found (OK)"
+          done
+      
+      - name: Clean up old Docker images (keep last 3)
+        run: |
+          echo "🐳 Cleaning up old Docker images..."
+          for IMAGE_NAME in retriever-agent orchestrator-agent ingestion; do
+            echo "Cleaning $IMAGE_NAME..."
+            gcloud artifacts docker images list \
+              "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${IMAGE_NAME}" \
+              --project="${PROJECT_ID}" \
+              --format='get(version)' \
+              --sort-by=~CREATE_TIME \
+              --limit=999 | tail -n +4 | while read VERSION; do
+                gcloud artifacts docker images delete \
+                  "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${IMAGE_NAME}@${VERSION}" \
+                  --project="${PROJECT_ID}" \
+                  --quiet 2>/dev/null || true
+            done
+          done
+          echo "✓ Old images cleaned up"
+
   setup-bigquery:
+    needs: [cleanup-old-resources]
+    if: always() && (needs.cleanup-old-resources.result == 'success' || needs.cleanup-old-resources.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +94,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install BigQuery client
-        run: pip install google-cloud-bigquery
+        run: pip install google-cloud-bigquery db-dtypes
 
       - name: Setup BigQuery dataset and tables
         run: |
@@ -46,6 +103,14 @@ jobs:
         env:
           GOOGLE_CLOUD_PROJECT: ${{ vars.GCP_PROJECT_ID }}
           GOOGLE_CLOUD_LOCATION: ${{ vars.GCP_REGION }}
+      
+      - name: Verify BigQuery setup
+        run: |
+          echo "✓ Verifying BigQuery tables..."
+          bq query --use_legacy_sql=false "SELECT COUNT(*) as country_count FROM \`${PROJECT_ID}.geography_index.countries\`"
+          bq query --use_legacy_sql=false "SELECT COUNT(*) as state_count FROM \`${PROJECT_ID}.geography_index.states\`"
+          bq query --use_legacy_sql=false "SELECT COUNT(*) as district_count FROM \`${PROJECT_ID}.geography_index.districts\`"
+          echo "✓ BigQuery setup verified"
 
   deploy-retriever:
     needs: setup-bigquery
@@ -189,3 +254,27 @@ jobs:
             -d '{}' \
             --silent --show-error
           echo "✓ Ingestion triggered successfully"
+      
+      - name: 🎉 Deployment Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ DEPLOYMENT COMPLETED SUCCESSFULLY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "📦 Deployed Services:"
+          echo "   ✓ BigQuery Agent (geography_index dataset)"
+          RETRIEVER_URL=$(gcloud run services describe retriever-agent --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')
+          echo "   ✓ Retriever Agent: $RETRIEVER_URL"
+          ORCH_URL=$(gcloud run services describe orchestrator-agent --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')
+          echo "   ✓ Orchestrator Agent: $ORCH_URL"
+          INGEST_URL=$(gcloud run services describe ingestion --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')
+          echo "   ✓ Ingestion Service: $INGEST_URL"
+          echo ""
+          echo "🌐 Test Your Deployment:"
+          echo "   Open: $ORCH_URL"
+          echo ""
+          echo "💡 Try These Questions:"
+          echo "   • What states are in India?"
+          echo "   • Tell me about Maharashtra"
+          echo "   • What is the capital of Karnataka?"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

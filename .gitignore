@@ -19,3 +19,6 @@ service-account*.json
 .DS_Store
 Thumbs.db
 .vscode/
+.env.local
+.venv/
+venv/
