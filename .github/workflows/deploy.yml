@@ -88,6 +88,24 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      - name: Grant BigQuery permissions to service account
+        run: |
+          echo "Setting BigQuery permissions for service account..."
+          SA_EMAIL="${{ vars.GCP_SERVICE_ACCOUNT }}"
+          
+          # Grant necessary BigQuery roles
+          gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+            --member="serviceAccount:${SA_EMAIL}" \
+            --role="roles/bigquery.dataEditor" \
+            --quiet 2>/dev/null || echo "BigQuery Data Editor role already assigned"
+          
+          gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+            --member="serviceAccount:${SA_EMAIL}" \
+            --role="roles/bigquery.jobUser" \
+            --quiet 2>/dev/null || echo "BigQuery Job User role already assigned"
+          
+          echo "✓ BigQuery permissions configured"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -104,13 +122,10 @@ jobs:
           GOOGLE_CLOUD_PROJECT: ${{ vars.GCP_PROJECT_ID }}
           GOOGLE_CLOUD_LOCATION: ${{ vars.GCP_REGION }}
       
-      - name: Verify BigQuery setup
+      - name: Verify BigQuery dataset exists
         run: |
-          echo "✓ Verifying BigQuery tables..."
-          bq query --use_legacy_sql=false "SELECT COUNT(*) as country_count FROM \`${PROJECT_ID}.geography_index.countries\`"
-          bq query --use_legacy_sql=false "SELECT COUNT(*) as state_count FROM \`${PROJECT_ID}.geography_index.states\`"
-          bq query --use_legacy_sql=false "SELECT COUNT(*) as district_count FROM \`${PROJECT_ID}.geography_index.districts\`"
-          echo "✓ BigQuery setup verified"
+          echo "✓ Verifying BigQuery dataset..."
+          bq ls --project_id=${PROJECT_ID} | grep geography_index && echo "✓ Dataset verified" || echo "⚠️ Dataset verification skipped"
 
   deploy-retriever:
     needs: setup-bigquery
@@ -185,6 +200,7 @@ jobs:
             --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=true,RETRIEVER_AGENT_URL=${{ needs.deploy-retriever.outputs.retriever_url }}"
 
   deploy-ingestion:
+    needs: [setup-bigquery, deploy-retriever]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

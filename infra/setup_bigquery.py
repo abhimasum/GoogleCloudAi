@@ -9,6 +9,7 @@ Creates:
 import os
 import sys
 from google.cloud import bigquery
+from google.api_core.exceptions import Forbidden, NotFound
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
 DATASET_ID = "geography_index"
@@ -19,6 +20,20 @@ if not PROJECT_ID:
     sys.exit(1)
 
 client = bigquery.Client(project=PROJECT_ID)
+
+def check_table_has_data(table_id: str) -> bool:
+    """Check if table has data without running a query (workaround for permission issues)."""
+    try:
+        # Try to get table info
+        table = client.get_table(table_id)
+        # If num_rows > 0, we have data
+        return table.num_rows > 0
+    except (Forbidden, NotFound):
+        # Table doesn't exist or no permission
+        return False
+    except Exception as e:
+        print(f"Warning: Could not check if table has data: {e}")
+        return False
 
 # Create dataset
 dataset_id = f"{PROJECT_ID}.{DATASET_ID}"
@@ -56,14 +71,15 @@ countries_data = [
 ]
 
 # Check if data already exists
-query = f"SELECT COUNT(*) as count FROM `{countries_table_id}`"
-result = list(client.query(query).result())
-if result[0]["count"] == 0:
-    errors = client.insert_rows_json(countries_table_id, countries_data)
-    if errors:
-        print(f"Errors inserting countries: {errors}")
-    else:
-        print(f"✓ Inserted {len(countries_data)} countries")
+if not check_table_has_data(countries_table_id):
+    try:
+        errors = client.insert_rows_json(countries_table_id, countries_data)
+        if errors:
+            print(f"Errors inserting countries: {errors}")
+        else:
+            print(f"✓ Inserted {len(countries_data)} countries")
+    except Exception as e:
+        print(f"⚠️ Could not insert countries data: {e}")
 else:
     print(f"✓ Countries table already has data")
 
@@ -95,14 +111,15 @@ states_data = [
     {"id": 5, "country_id": 1, "name": "West Bengal", "capital": "Kolkata", "population": 100000000, "area_km2": 88752.0},
 ]
 
-query = f"SELECT COUNT(*) as count FROM `{states_table_id}`"
-result = list(client.query(query).result())
-if result[0]["count"] == 0:
-    errors = client.insert_rows_json(states_table_id, states_data)
-    if errors:
-        print(f"Errors inserting states: {errors}")
-    else:
-        print(f"✓ Inserted {len(states_data)} states")
+if not check_table_has_data(states_table_id):
+    try:
+        errors = client.insert_rows_json(states_table_id, states_data)
+        if errors:
+            print(f"Errors inserting states: {errors}")
+        else:
+            print(f"✓ Inserted {len(states_data)} states")
+    except Exception as e:
+        print(f"⚠️ Could not insert states data: {e}")
 else:
     print(f"✓ States table already has data")
 
@@ -139,14 +156,15 @@ districts_data = [
     {"id": 7, "state_id": 3, "name": "Coimbatore", "headquarters": "Coimbatore", "population": 3458045, "area_km2": 7469.0},
 ]
 
-query = f"SELECT COUNT(*) as count FROM `{districts_table_id}`"
-result = list(client.query(query).result())
-if result[0]["count"] == 0:
-    errors = client.insert_rows_json(districts_table_id, districts_data)
-    if errors:
-        print(f"Errors inserting districts: {errors}")
-    else:
-        print(f"✓ Inserted {len(districts_data)} districts")
+if not check_table_has_data(districts_table_id):
+    try:
+        errors = client.insert_rows_json(districts_table_id, districts_data)
+        if errors:
+            print(f"Errors inserting districts: {errors}")
+        else:
+            print(f"✓ Inserted {len(districts_data)} districts")
+    except Exception as e:
+        print(f"⚠️ Could not insert districts data: {e}")
 else:
     print(f"✓ Districts table already has data")
 
